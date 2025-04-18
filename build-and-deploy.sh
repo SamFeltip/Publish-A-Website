@@ -63,13 +63,25 @@ if [ -z "$ACCOUNT_ID" ]; then
     echo "Running wrangler whoami to get your account information..."
     WHOAMI_OUTPUT=$(wrangler whoami 2>&1)
     
+    # Look for the line containing the Account ID in the table
+    # The sample output shows it's in the second column of the account table row
     if echo "$WHOAMI_OUTPUT" | grep -q "Account ID"; then
-      # Extract the account ID from the output
-      ACCOUNT_ID=$(echo "$WHOAMI_OUTPUT" | grep "Account ID" | sed -E 's/.*Account ID[[:space:]]*\|[[:space:]]*(.*)[[:space:]]*\|.*/\1/' | xargs)
-      echo "✅ Found Account ID: $ACCOUNT_ID"
+      # Extract just the account ID (the actual ID value, not the header)
+      EXTRACTED_ID=$(echo "$WHOAMI_OUTPUT" | grep -A 2 "Account ID" | tail -n 1 | awk -F '│' '{print $3}' | xargs)
+      
+      # Make sure we got something that looks like an ID (non-empty, not a header)
+      if [[ -n "$EXTRACTED_ID" && "$EXTRACTED_ID" != *"Account ID"* ]]; then
+        ACCOUNT_ID="$EXTRACTED_ID"
+        echo "✅ Found Account ID: $ACCOUNT_ID"
+      else
+        echo "❌ Could not automatically extract Account ID."
+        echo "Please look in the output below for your Account ID (a string of letters and numbers):"
+        echo "$WHOAMI_OUTPUT"
+        prompt_if_missing "ACCOUNT_ID" "🌩️  Your Cloudflare Account ID: "
+      fi
     else
-      echo "❌ Could not automatically extract Account ID."
-      echo "Please check the output below and enter your Account ID manually:"
+      echo "❌ Could not find Account ID in wrangler output."
+      echo "Please look in the output below for your Account ID (a string of letters and numbers):"
       echo "$WHOAMI_OUTPUT"
       prompt_if_missing "ACCOUNT_ID" "🌩️  Your Cloudflare Account ID: "
     fi
