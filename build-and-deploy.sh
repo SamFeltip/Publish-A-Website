@@ -118,7 +118,7 @@ echo "☁️  Beaming your project to GitHub..."
 gh repo create "$GITHUB_USER/$REPO_NAME" --public --source=. --push
 
 echo "⚡ Connecting to the Cloudflare Pages constellation..."
-curl -X POST "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/pages/projects" \
+PROJECT_RESPONSE=$(curl -X POST "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/pages/projects" \
   -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
   -H "Content-Type: application/json" \
   --data '{
@@ -132,10 +132,69 @@ curl -X POST "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/pages/pr
         "production_branch": "main"
       }
     }
-  }'
+  }')
+
+# Check if project creation was successful
+if echo "$PROJECT_RESPONSE" | grep -q '"success":true'; then
+  echo "✅ Project created successfully on Cloudflare Pages!"
+  
+  # Prepare the project for deployment
+  # First, add the Astro Cloudflare adapter
+  echo ""
+  echo "📦 Adding Cloudflare adapter to Astro..."
+  npm install @astrojs/cloudflare
+
+  # Update the astro.config.mjs file
+  echo "🔧 Configuring Astro for Cloudflare Pages..."
+  cat > astro.config.mjs << EOF
+import { defineConfig } from 'astro/config';
+import cloudflare from '@astrojs/cloudflare';
+
+export default defineConfig({
+  output: 'server',
+  adapter: cloudflare(),
+});
+EOF
+  
+  # Commit the changes
+  git add .
+  git commit -m "Add Cloudflare adapter"
+  git push
+  
+  # Create a build with direct upload (for first deployment)
+  echo "🚀 Building and deploying to Cloudflare Pages..."
+  npm run build
+  
+  # Creating a directory for deployment files
+  mkdir -p .cloudflare/deploy
+  cp -r dist/* .cloudflare/deploy/
+  
+  # Trigger a deployment manually
+  DEPLOYMENT_RESPONSE=$(curl -X POST "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/pages/projects/$REPO_NAME/deployments" \
+    -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+    -F "manifest=@.cloudflare/deploy/_headers" \
+    -F "files[]=@.cloudflare/deploy/")
+    
+  if echo "$DEPLOYMENT_RESPONSE" | grep -q '"success":true'; then
+    echo "✅ Initial deployment successful!"
+    # Extract the deployment URL from the response if available
+    DEPLOYMENT_URL=$(echo "$DEPLOYMENT_RESPONSE" | grep -o '"url":"[^"]*"' | sed 's/"url":"\(.*\)"/\1/')
+    if [ -n "$DEPLOYMENT_URL" ]; then
+      echo "🔗 Your site is now live at: $DEPLOYMENT_URL"
+    else
+      echo "🔗 Your site is now deploying. Check the Cloudflare Pages dashboard for the URL."
+    fi
+  else
+    echo "⚠️ Initial deployment started, but couldn't verify completion."
+    echo "Check the Cloudflare Pages dashboard for deployment status."
+  fi
+else
+  echo "⚠️ Project created, but there might have been issues."
+  echo "Please check the Cloudflare Pages dashboard."
+fi
 
 echo ""
 echo "✅ All done!"
-echo "Your Astro site '$REPO_NAME' now lives on GitHub *and* is linked to Cloudflare Pages."
+echo "Your Astro site '$REPO_NAME' now lives on GitHub and is linked to Cloudflare Pages."
 echo "Deployments will trigger automatically whenever you push to main!"
 echo "🪐 Happy site-building, space traveler."
