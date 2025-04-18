@@ -105,7 +105,7 @@ EOF
 echo ""
 echo "🛠️  Preparing your project... hang tight!"
 
-npm create astro@latest "$REPO_NAME" -- --template basic --typescript strict --install --yes
+npm create astro@latest "$REPO_NAME" -- --typescript strict --install --yes
 cd "$REPO_NAME"
 npm install
 
