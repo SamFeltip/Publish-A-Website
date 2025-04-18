@@ -28,15 +28,59 @@ prompt_if_missing() {
 
 echo ""
 echo "✨ Let's get started!"
-echo "We'll host your Astro site's code on github, and use Cloudflare to run the site itsself."
+echo "We'll host your Astro site's code on github, and use Cloudflare to run the site itself."
 sleep 2
 echo "If you want to stop the process at any time, just hit Ctrl+C."
 sleep 1
 
 prompt_if_missing "REPO_NAME" "🚀 What shall we name your repo (e.g. astro-cloudflare-demo)? "
 prompt_if_missing "GITHUB_USER" "🐙 Your GitHub username (so we can find your starry home): "
+
+# Cloudflare API Token Instructions
+echo ""
+echo "📋 To get your Cloudflare API token:"
+echo "  1. Log in to your Cloudflare dashboard (https://dash.cloudflare.com)"
+echo "  2. Click on 'My Profile' in the top right corner"
+echo "  3. Select 'API Tokens' from the left sidebar"
+echo "  4. Click 'Create Token'"
+echo "  5. Either use the 'Edit Cloudflare Workers' template or create a custom token with:"
+echo "     - Account / Cloudflare Pages: Edit permission"
+echo "     - Account / Account Settings: Read permission"
+echo "  6. Complete the token creation process and copy the token provided"
+echo ""
+
 prompt_if_missing "CLOUDFLARE_API_TOKEN" "🔐 Paste your Cloudflare API token (input hidden): " true
-prompt_if_missing "ACCOUNT_ID" "🌩️  Your Cloudflare Account ID (found via 'wrangler whoami'): "
+
+# Get Account ID using wrangler
+echo ""
+echo "🔍 Checking for Cloudflare Account ID using wrangler..."
+echo "If you haven't installed wrangler, run: npm install -g wrangler"
+echo "If you haven't logged in to wrangler, run: wrangler login"
+echo ""
+
+if [ -z "$ACCOUNT_ID" ]; then
+  if command -v wrangler &> /dev/null; then
+    echo "Running wrangler whoami to get your account information..."
+    WHOAMI_OUTPUT=$(wrangler whoami 2>&1)
+    
+    if echo "$WHOAMI_OUTPUT" | grep -q "Account ID"; then
+      # Extract the account ID from the output
+      ACCOUNT_ID=$(echo "$WHOAMI_OUTPUT" | grep "Account ID" | sed -E 's/.*Account ID[[:space:]]*\|[[:space:]]*(.*)[[:space:]]*\|.*/\1/' | xargs)
+      echo "✅ Found Account ID: $ACCOUNT_ID"
+    else
+      echo "❌ Could not automatically extract Account ID."
+      echo "Please check the output below and enter your Account ID manually:"
+      echo "$WHOAMI_OUTPUT"
+      prompt_if_missing "ACCOUNT_ID" "🌩️  Your Cloudflare Account ID: "
+    fi
+  else
+    echo "❌ wrangler command not found. Please install it with: npm install -g wrangler"
+    echo "Then run wrangler login and wrangler whoami to find your Account ID."
+    prompt_if_missing "ACCOUNT_ID" "🌩️  Your Cloudflare Account ID: "
+  fi
+else
+  echo "✅ Using saved Account ID: $ACCOUNT_ID"
+fi
 
 # Write updated values back to the file
 cat > "$VARS_FILE" << EOF
